@@ -8,7 +8,7 @@
 
 ## 安装
 
-先在目标电脑配置能访问此私有仓库的 GitHub 凭据。然后列出技能：
+先在目标电脑安装 Node.js 和 npm。然后列出技能：
 
 ```bash
 npx skills add Troymayrain/personal-skills --list

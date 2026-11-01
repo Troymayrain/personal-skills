@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cloudflare EdgeTunnel 部署与节点优选"
+  short_description: "部署 EdgeTunnel 并按当前网络筛选代理节点"
+  default_prompt: "使用 $cloudflare-edgetunnel 部署或接管我的 EdgeTunnel，并按当前网络实测筛选节点。"

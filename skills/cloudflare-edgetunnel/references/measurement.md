@@ -13,7 +13,17 @@
 
 使用一个测试 URL，例如 `https://www.gstatic.com/generate_204`；记录预期状态、核心版本、`unified-delay`、超时、并发和时间。`unified-delay: true` 下的数值不等于从零建立连接的总耗时。Mihomo delay API 的延迟本身不能证明目标返回预期 HTTP 状态；对最终候选另发 HTTPS 请求，核验状态，例如该 URL 的 204。
 
-随技能附带的 `scripts/measure_mihomo.py` 只读取隔离核心或已授权核心的本地 API，不启动核心、不改变选择。先查看 `--help`。目标 JSON 为节点名数组，或带 `name`、可选 `max_ms` 的对象数组；`max_ms: null` 表示不设门槛。使用经确认的 controller 地址，示例：
+随技能附带的 `scripts/measure_mihomo.py` 只读取隔离核心或已授权核心的本地 API，不启动核心、不改变选择。先查看 `--help`。目标 JSON 为节点名数组，或带 `name`、可选 `max_ms` 的对象数组；`max_ms: null` 表示不设门槛。默认按地区设置门槛：日本和新加坡为 100 ms，美国为 200 ms；目标名称必须与实际配置一致，例如：
+
+```json
+[
+  {"name": "JP-01", "max_ms": 100},
+  {"name": "SG-01", "max_ms": 100},
+  {"name": "US-01", "max_ms": 200}
+]
+```
+
+使用经确认的 controller 地址，示例：
 
 ```sh
 python3 scripts/measure_mihomo.py \
@@ -24,7 +34,7 @@ python3 scripts/measure_mihomo.py \
   --unified-delay true --network-note '物理出口已独立核验'
 ```
 
-API secret 只从 `MIHOMO_API_SECRET` 环境变量读取。脚本的 `network-note` 只是记录，不能代替实际出口验证。脚本记录原始样本、错误、失败数、最大值、`mean_ms` 和完成轮数；不足全部轮次或任何一次失败时，不把成功样本均值当作完整均值。需要严格门槛时，必须全部成功且每次低于门槛；平均值合格不等于每次合格。限定候选池时报告规模、排除数、时段与方法；不能称作全网最低。
+API secret 只从 `MIHOMO_API_SECRET` 环境变量读取。脚本的 `network-note` 只是记录，不能代替实际出口验证。脚本记录原始样本、错误、失败数、最大值、`mean_ms` 和完成轮数；不足全部轮次或任何一次失败时，不把成功样本均值当作完整均值。默认门槛要求 10 次全部成功且每次严格低于对应阈值；用 `strict_pass` 判断，再按 `mean_ms` 排序。等于阈值不合格；平均值合格不等于每次合格。用户另行指定次数或门槛时按其要求执行。限定候选池时报告规模、排除数、时段与方法；不能称作全网最低。
 
 ## 地区与可信边界
 

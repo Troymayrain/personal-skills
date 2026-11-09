@@ -1,0 +1,13 @@
+interface:
+  display_name: Implement Spec with Orca
+  short_description: 用 Orca 编排 Claude 审查、Codex 后端与 Antigravity 前端
+  default_prompt: 使用 $implement-spec-orca 执行这个 spec：[链接或路径]。
+  icon_small: assets/icon.svg
+  icon_large: assets/icon.svg
+policy:
+  allow_implicit_invocation: false
+  products:
+  - chatgpt
+  - codex
+  - api
+  - atlas

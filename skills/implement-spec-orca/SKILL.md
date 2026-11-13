@@ -3,7 +3,7 @@ name: implement-spec-orca
 description: >-
   在用户明确要求执行已有 spec 时使用：接收 spec 链接或路径，沿用 mattpocock/skills
   的 implement-spec 流程，通过 Orca 让 Claude 统筹、合并和审查，Codex 实现后端，
-  Antigravity 实现前端/UI。适用于包含前端、后端和全栈工单的依赖图。
+  Antigravity 实现前端/UI，并按指定模型优先级处理额度不足。适用于包含前端、后端和全栈工单的依赖图。
 ---
 
 # Implement Spec with Orca
@@ -34,7 +34,8 @@ description: >-
    用户只要求计划或预演时，可给出计划，保持未执行状态。
 3. 读取已安装的 Orca `orchestration` 技能，按其规则解析当前会话的 CLI 入口，
    再运行该入口的 `skills get orchestration --full`；需要工作区操作时加载 `orca-cli` 指南。
-   使用当前安装版本支持的命令，依照失败回执恢复。Chat UI / TUI 沿用用户设置与主机能力。
+   使用当前安装版本支持的命令，依照失败回执恢复。主协调者可使用 Chat UI 或 TUI；
+   Antigravity 的启动方式、模型与额度按下述专门策略处理。
 4. 核对 `claude`、`codex`、`antigravity` 可用；确认各 worker 可读取 spec、工单、项目规范、
    `tdd` 和必要的共享笔记。支持技能工具时调用，不支持时读取同一技能正文及其必要引用。
    私有链接或本地资料若不能直接共享，由协调者提供对应的可读材料，避免假设子会话继承主会话内容。
@@ -52,14 +53,23 @@ description: >-
 | merger worker | `claude` | 串行整合一张已完成工单、检查结果并报告 |
 | reviewer | `claude` | 全部工单合入后，在新会话中执行 mattpocock 的 `code-review` |
 
-通过 Orca `worker-start` 派发真实的对应 agent，按角色显式传入 `--agent codex`、
-`--agent antigravity` 或 `--agent claude`，不以同一工具的角色名称代替跨工具调用。
-每个新工单、实现阶段、合并任务和正式审查使用新的 worker 会话；模型沿用各 agent 的现有配置，
-除非用户指定。实现 worker 只执行分配范围，不递归运行整个 `implement-spec` 或接管全局工单图。
+通过 Orca `worker-start` 派发真实的对应 agent。新建会话时按角色显式指定 `--agent`；
+Antigravity 也可按模型策略接管本轮新建、已核验身份的专用 `agy` terminal，遵守接管模式的互斥参数规则。
+每个新工单、实现阶段、合并任务和正式审查使用新的 worker 会话。
+Claude 和 Codex 的模型沿用现有配置，除非用户另行指定；Antigravity 遵循下述策略。
+实现 worker 只执行分配范围，不递归运行整个 `implement-spec` 或接管全局工单图。
 正式 reviewer 可按 `code-review` 原定义使用 Claude 审查子任务，保留 Standards 与 Spec 两个维度。
 
 从原 spec 和 tickets 发现工作；不要求用户重复填写工单来源，不预设固定并发数量。
 在依赖和实际资源允许时尽可能并行，同时保持同一 worktree 一个写入者、integration branch 一个 merger。
+
+### Antigravity 模型与额度
+
+首次派发任何前端/UI 阶段前，完整读取 [Antigravity 模型策略](references/antigravity-model-policy.md)。
+其中的优先级、运行前检查、启动与实际生效验证、额度错误分类、共享状态、停写接力和清理规则，
+统一适用于前端工单、全栈工单的前端阶段、冲突修复与最终审查中的前端修复。
+同一 run 的后续派工和恢复继续使用同一份状态；不会因为换票、换 worker 或进入审查修复就重置。
+模型降级只恢复受影响的当前阶段，不改变业务工单身份、依赖、worktree、分支或完成条件。
 
 ## 4. 每张工单的实现与交接
 
@@ -84,11 +94,13 @@ description: >-
 - 工作区、分支、基础提交和所需上游产物；
 - 交付要求：结果 commit SHA、验证命令与结果、未解决问题。
 
+Antigravity 的任务说明还需携带本次 attempt、模型档位、实际模型/effort、额度状态记录和交接位置。
 要求 worker 在实现前核对实际工作区与基础提交，并读取所需资料。
 资料不可读或基准不符时，先向协调者报告并解决，再继续实现。
 
 将工单与阶段 Task、Dispatch、工作区、提交和合并结果对应记录在可恢复的运行状态或共享笔记中。
 阶段 `worker_done` 只表示该阶段结束，不能提前把整张工单或其依赖判为完成。
+遇到 Antigravity 额度、启动或模型不符事件时，先按模型策略处理，再决定该阶段是否可以继续。
 
 ## 5. 逐票合并与持续推进
 
@@ -124,10 +136,12 @@ description: >-
 按原技能及项目 tracker 约定创建或更新 PR、标记 ready、处理工单和报告 integration branch。
 只有成果、验证与审查处理完成才收尾；有阻碍时保持对应工作未完成并说明原因。
 
-按 Orca 指南释放本次运行的 worker，再清理本次创建、已确认合入且没有未交付改动的实现 worktree。
+按 Orca 指南释放本次运行的 worker；按模型策略分别处理 Orca 受管资源与接管的专用 Antigravity terminal。
+再清理本次创建、已确认合入且没有未交付改动的实现 worktree。
 释放 worker 不等于删除 worktree；保留用户已有工作区和仍需恢复的资料。
 
 最终报告逐工单结果、集成提交、验证与审查证据、PR/工单状态及未解决阻碍。
+包含 Antigravity 各阶段实际使用的模型/effort、切换证据、保留进度和仍受额度阻塞的工作。
 分别说明实际执行、未执行、失败或跳过的检查，不把文档检查或计划当作运行成功。
 
 ## 维护依据

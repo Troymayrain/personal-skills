@@ -3,7 +3,7 @@ name: implement-spec-orca
 description: >-
   在用户明确要求执行已有 spec 时使用：接收 spec 链接或路径，沿用 mattpocock/skills
   的 implement-spec 流程，通过 Orca 让 Claude 统筹、合并和审查，Codex 实现后端，
-  Antigravity 实现前端/UI，并按指定模型优先级处理额度不足。适用于包含前端、后端和全栈工单的依赖图。
+  Antigravity 使用 Gemini 4 Hydrogen XHigh 实现前端/UI。适用于包含前端、后端和全栈工单的依赖图。
 ---
 
 # Implement Spec with Orca
@@ -35,7 +35,7 @@ description: >-
 3. 读取已安装的 Orca `orchestration` 技能，按其规则解析当前会话的 CLI 入口，
    再运行该入口的 `skills get orchestration --full`；需要工作区操作时加载 `orca-cli` 指南。
    使用当前安装版本支持的命令，依照失败回执恢复。主协调者可使用 Chat UI 或 TUI；
-   Antigravity 的启动方式、模型与额度按下述专门策略处理。
+   Antigravity 按下述固定模型配置启动。
 4. 核对 `claude`、`codex`、`antigravity` 可用；确认各 worker 可读取 spec、工单、项目规范、
    `tdd` 和必要的共享笔记。支持技能工具时调用，不支持时读取同一技能正文及其必要引用。
    私有链接或本地资料若不能直接共享，由协调者提供对应的可读材料，避免假设子会话继承主会话内容。
@@ -63,13 +63,13 @@ Claude 和 Codex 的模型沿用现有配置，除非用户另行指定；Antigr
 从原 spec 和 tickets 发现工作；不要求用户重复填写工单来源，不预设固定并发数量。
 在依赖和实际资源允许时尽可能并行，同时保持同一 worktree 一个写入者、integration branch 一个 merger。
 
-### Antigravity 模型与额度
+### Antigravity 固定模型
 
-首次派发任何前端/UI 阶段前，完整读取 [Antigravity 模型策略](references/antigravity-model-policy.md)。
-其中的优先级、运行前检查、启动与实际生效验证、额度错误分类、共享状态、停写接力和清理规则，
-统一适用于前端工单、全栈工单的前端阶段、冲突修复与最终审查中的前端修复。
-同一 run 的后续派工和恢复继续使用同一份状态；不会因为换票、换 worker 或进入审查修复就重置。
-模型降级只恢复受影响的当前阶段，不改变业务工单身份、依赖、worktree、分支或完成条件。
+所有前端工单、全栈工单的前端阶段、联调、冲突修复和最终审查中的前端修复，
+统一使用 Gemini 4 Hydrogen XHigh。
+首次派工前读取 [Antigravity 固定模型配置](references/antigravity-model-policy.md)，
+按其中的明确参数启动并做必要的会话核验；同一运行复用已确认的启动路径。
+模型选择固定，不执行额度预检、档位管理或自动切换。
 
 ## 4. 每张工单的实现与交接
 
@@ -94,13 +94,13 @@ Claude 和 Codex 的模型沿用现有配置，除非用户另行指定；Antigr
 - 工作区、分支、基础提交和所需上游产物；
 - 交付要求：结果 commit SHA、验证命令与结果、未解决问题。
 
-Antigravity 的任务说明还需携带本次 attempt、模型档位、实际模型/effort、额度状态记录和交接位置。
+Antigravity 派工注明固定模型与 effort；恢复任务同时提供现有进度和交接位置。
 要求 worker 在实现前核对实际工作区与基础提交，并读取所需资料。
 资料不可读或基准不符时，先向协调者报告并解决，再继续实现。
 
 将工单与阶段 Task、Dispatch、工作区、提交和合并结果对应记录在可恢复的运行状态或共享笔记中。
 阶段 `worker_done` 只表示该阶段结束，不能提前把整张工单或其依赖判为完成。
-遇到 Antigravity 额度、启动或模型不符事件时，先按模型策略处理，再决定该阶段是否可以继续。
+Antigravity 启动或执行受阻时按固定模型配置处理，保留原工单进度。
 
 ## 5. 逐票合并与持续推进
 
@@ -136,12 +136,12 @@ Antigravity 的任务说明还需携带本次 attempt、模型档位、实际模
 按原技能及项目 tracker 约定创建或更新 PR、标记 ready、处理工单和报告 integration branch。
 只有成果、验证与审查处理完成才收尾；有阻碍时保持对应工作未完成并说明原因。
 
-按 Orca 指南释放本次运行的 worker；按模型策略分别处理 Orca 受管资源与接管的专用 Antigravity terminal。
+按 Orca 指南释放本次运行的 worker；按固定模型配置清理本轮创建的专用 Antigravity terminal。
 再清理本次创建、已确认合入且没有未交付改动的实现 worktree。
 释放 worker 不等于删除 worktree；保留用户已有工作区和仍需恢复的资料。
 
 最终报告逐工单结果、集成提交、验证与审查证据、PR/工单状态及未解决阻碍。
-包含 Antigravity 各阶段实际使用的模型/effort、切换证据、保留进度和仍受额度阻塞的工作。
+包含 Antigravity 实际使用的模型/effort；有执行阻塞时说明保留进度和剩余工作。
 分别说明实际执行、未执行、失败或跳过的检查，不把文档检查或计划当作运行成功。
 
 ## 维护依据

@@ -45,6 +45,7 @@ Claude 主协调者仍可使用 Chat UI。
 `worker-start --agent antigravity --model gemini-4-hydrogen-xhigh --effort xhigh`，
 并传入同一阶段与准确工作区；同一运行复用已确认的启动路径。
 若 Orca 拒绝 `xhigh`，使用上述专用 CLI 路径。省略 effort 可能继承其他强度。
+两种 `worker-start` 路径都按主技能的 `run.md` 规则登记实际 worktree 路径与分支；终端释放后仍需核销工作区与分支清理单元。
 
 ## 3. 阻塞与恢复
 

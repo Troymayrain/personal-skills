@@ -27,7 +27,7 @@ description: >-
 ## 2. 加载流程与执行环境
 
 1. 定位并完整读取用户已安装的 mattpocock `implement-spec`，通过准确技能名称或命名空间区分同名技能。
-   将它作为主流程依据；本技能明确覆盖的角色、交接和修复规则优先，其余步骤沿用该版本。
+   将它作为主流程依据；本技能明确覆盖的角色、交接、修复、运行记录和清理规则优先，其余步骤沿用该版本。
    读取其定义不依赖它是否允许模型自动调用；不要改写原技能来启用调用。
 2. 在能访问目标项目的 Orca Claude Code 主协调会话中执行。确认项目、tracker 配置和 spec 对应关系。
    若缺少 `implement-spec`、tracker 配置或可用的 Orca 执行环境，说明具体缺项并停止派工。
@@ -62,6 +62,27 @@ Claude 和 Codex 的模型沿用现有配置，除非用户另行指定；Antigr
 
 从原 spec 和 tickets 发现工作；不要求用户重复填写工单来源，不预设固定并发数量。
 在依赖和实际资源允许时尽可能并行，同时保持同一 worktree 一个写入者、integration branch 一个 merger。
+
+### run.md 运行台账
+
+创建本轮分支/worktree 或启动任何 worker 前，确定本轮唯一的 `run.md`。
+使用项目约定的持久运行目录；没有约定时，放在
+`<git-common-dir>/orca-runs/<run_id>/run.md`（用 `git rev-parse --git-common-dir` 解析并转为绝对路径）。
+台账由协调者维护，放在待清理 worktree 之外，保留到最终报告之后。
+
+先记录 `git worktree list --porcelain` 和 `git branch` 的初始清单，标明用户已有、主工作区和应保留分支。
+**每次 `worker-start` 都追加派工记录**，覆盖 Codex、Antigravity 两种启动路径、Claude merger/reviewer 及重试：
+启动前写入已知目标；收到回执后用实际 Git 状态核验并补全，不以预计名称代替真实路径/分支。
+启动失败也记录结果及已经创建的资源。每条记录包含：
+
+- 工单/阶段、角色、Task/Dispatch、启动结果；
+- worktree 绝对路径、实际本地分支名、HEAD，以及本轮创建还是借用；
+- 对应远端和分支引用（没有则记无），合入目标及确认合入的提交；
+- 清理单元标识、worktree 状态、本地分支状态、远端分支状态及证据/保留原因。
+
+同一 `worktree + 分支` 的多阶段、重试记录关联同一个清理单元，保留派工历史，清理时只处理一次。
+detached HEAD 明确记录为“无分支”及其 SHA，不推测分支名；分支切换、改名或工作区移动时及时更新对应关系。
+清理必须按台账逐项核销；记录与现场不符时先查明并补齐，不凭记忆选取删除对象。
 
 ### Antigravity 固定模型
 
@@ -98,7 +119,7 @@ Antigravity 派工注明固定模型与 effort；恢复任务同时提供现有�
 要求 worker 在实现前核对实际工作区与基础提交，并读取所需资料。
 资料不可读或基准不符时，先向协调者报告并解决，再继续实现。
 
-将工单与阶段 Task、Dispatch、工作区、提交和合并结果对应记录在可恢复的运行状态或共享笔记中。
+将工单与阶段 Task、Dispatch、工作区、提交和合并结果对应写入本轮 `run.md`；其他笔记引用这份台账。
 阶段 `worker_done` 只表示该阶段结束，不能提前把整张工单或其依赖判为完成。
 Antigravity 启动或执行受阻时按固定模型配置处理，保留原工单进度。
 
@@ -136,12 +157,54 @@ Antigravity 启动或执行受阻时按固定模型配置处理，保留原工�
 按原技能及项目 tracker 约定创建或更新 PR、标记 ready、处理工单和报告 integration branch。
 只有成果、验证与审查处理完成才收尾；有阻碍时保持对应工作未完成并说明原因。
 
-按 Orca 指南释放本次运行的 worker；按固定模型配置清理本轮创建的专用 Antigravity terminal。
-再清理本次创建、已确认合入且没有未交付改动的实现 worktree。
-释放 worker 不等于删除 worktree；保留用户已有工作区和仍需恢复的资料。
+### 按清理单元逐项核销
 
-最终报告逐工单结果、集成提交、验证与审查证据、PR/工单状态及未解决阻碍。
-包含 Antigravity 实际使用的模型/effort；有执行阻塞时说明保留进度和剩余工作。
+把 **worktree 与它的本地分支** 作为一个清理单元，按 `run.md` 逐项处理，不以移除目录代替分支清理。
+
+1. 按 Orca 指南释放本轮 worker，并按固定模型配置关闭本轮创建的专用 Antigravity terminal，确认所有相关执行者停写。
+   核对台账、实际路径、分支 tip、合入记录和工作区状态；仅清理本轮创建、成果已合入且无未交付改动的单元。
+   保留用户已有资源、主工作区和仍需交付的工作。integration PR 尚未合并时，保留其工作区、本地与远端分支。
+2. **先找项目文档中的清理工具**：检查 `AGENTS.md`、`CLAUDE.md`、README 及其指向的开发文档。
+   找到时读清工具说明与实现，先按文档运行预览；逐项核对待删路径、分支、合入目标和远端操作均在本轮可清理范围内，
+   再执行同一范围的 `--apply`；对象或 tip 变化时重新预览。
+   预览范围过大、无法限定目标或使用强删时停止并记录阻塞，不直接执行。
+   所有路径（包括工具内部）均不得使用 `git branch -D` 或等价的强制删除。
+3. **找不到项目清理工具时，用 Git 安全删除**。明确将继续保留的合入目标：工单/修复分支通常是 integration；
+   integration 自身仅在 PR 已合并、最终目标已核实后再考虑清理。在保留的目标工作区核验两端 tip：
+
+   ```bash
+   git -C "<保留目标工作区>" merge-base --is-ancestor "<待清理分支-tip>" "<保留目标-tip>"
+   ```
+
+   仅退出码为 0 才继续；非祖先（包括 squash/rebase 后无法证明）或检查出错时保留并报告。
+   再核对现场未变化、工作区干净且分支未被其他 worktree 使用，依次执行：
+
+   ```bash
+   git -C "<保留目标工作区>" worktree remove -- "<台账中的 worktree 绝对路径>"
+   git -C "<保留目标工作区>" branch -d -- "<台账中的本地分支名>"
+   ```
+
+   detached worktree 用登记的 HEAD 验证合入，仅移除 worktree，本地分支记为“不适用”。
+   使用保留目标分支所在的工作区执行 `branch -d`；Git 仍可能按 upstream 检查合入状态。
+   若 `-d` 拒绝，保留分支并记录原因，不改 upstream、强删或绕过检查；移除 worktree 不加 `--force`。
+4. 每项操作后回读实际状态，分别更新台账中的 worktree 和分支结果。
+   已移除 worktree 但分支仍在时记“部分清理”。工具成功执行后未覆盖的登记分支，沿用第 3 步的目标核验、祖先检查和 `branch -d`；
+   因越界或强删被阻塞的工具路径仍保持阻塞。只有 worktree 与本地分支都确认移除（无分支时记不适用）才核销完成。
+   已不存在的资源按实际证据核销，预期保留项写明原因；保留运行台账本身。
+5. 单独核对台账对应的**服务器远端分支**，可用
+   `git ls-remote --heads "<remote>" "refs/heads/<branch>"`；本地 `git branch -r` 的缓存不能证明远端现状。
+   远端删除按原流程与项目约定的授权范围执行，不能因本地清理成功而默认删除；未推送、仍存在、已删除或未确认分别记录。
+   网络或权限失败记“未确认”，不声称远端已清理。
+
+### 完成标准与最终报告
+
+清理完成标准增加：**实际运行 `git worktree list` 和 `git branch`，结果与 `run.md` 中已明确的预期保留清单一致，只剩预期项且没有缺项。**
+预期项以运行前保留清单、当前 PR/交付状态为依据；不能把漏删或失败项事后改成预期项来通过验收。
+所有本轮应清理单元均须完成核销；存在额外项、缺项、部分清理或未解决阻塞时，报告清理未完成并列出原因。
+
+最终报告逐工单结果、集成提交、验证与审查证据、PR/工单状态、`run.md` 路径及未解决阻碍。
+列明 worktree 清理结果、**本地分支与服务器远端分支各自的状态**（已删除/保留及原因/未确认），
+附最终 worktree/本地分支清单及核销结果。包含 Antigravity 实际使用的模型/effort。
 分别说明实际执行、未执行、失败或跳过的检查，不把文档检查或计划当作运行成功。
 
 ## 维护依据
@@ -149,5 +212,6 @@ Antigravity 启动或执行受阻时按固定模型配置处理，保留原工�
 - 主流程：[mattpocock implement-spec](https://github.com/mattpocock/skills/blob/main/skills/engineering/implement-spec/SKILL.md)
 - 编排机制：[Orca orchestration](https://github.com/stablyai/orca/blob/main/skill-guides/orchestration.md)
 - 参数机制：[Claude Code skill arguments](https://code.claude.com/docs/en/skills#pass-arguments-to-skills)
+- 清理语义：[git worktree](https://git-scm.com/docs/git-worktree)、[git merge-base](https://git-scm.com/docs/git-merge-base)、[git branch](https://git-scm.com/docs/git-branch)
 
 运行时优先读取本机已安装技能和版本匹配的 Orca 指南；上述链接用于核对来源，不替代本机命令契约。
